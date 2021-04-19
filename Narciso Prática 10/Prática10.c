@@ -1,10 +1,13 @@
 ///PRATICA 10 - NARCISO FILHO
 #include <stdio.h>
 #include <stdlib.h>
-#define _WIN32_WINNT 0x0500
+#define _WIN32_WINNT 0x0501
 #include <windows.h>
 
-#define FPS 70
+#define DELAY 70
+
+#define REF_Y 768       //Referencia de altura do monitor em pixels( minha resolucao )
+#define REF_X 1366     //Referencia de largura do monitor em pixels( minha resolucao )
 
 //Struct para o menu
 typedef struct
@@ -14,44 +17,61 @@ typedef struct
         unsigned entrar : 1;
         unsigned alterou : 1;
         unsigned sair : 1;
-}Selection;
+        HWND janela;
+        COORD tamanhoMonitor;
+        COORD casasMonitor;
 
-void iniciaJanela( void );
+        COORD posQ[ 5 ];
+        int tamLQ;
+
+        COORD posS;
+        int tamLS;
+
+        float escalaX;
+        float escalaY;
+}Selecao;
+
+void iniciaJanela( Selecao *sel );
 void compilatudo( void );
 void escondeCursor( void );
 void exibeCod( int );
 void rodaProg(int );
 
-void AtualizaMenu( Selection *sel );
-int deveSair( Selection *sel );
+void AtualizaMenuTeclado( Selecao *sel );
+int deveSair( Selecao *sel );
 int teclaPress( int tecla );
 
-void Moldura( int cor )  ;
-void DesenhaMenu( Selection sel );
-void SubItens( Selection sel );
+void Moldura( int cor ) ;
+void DesenhaMenu( Selecao sel );
+void Itens( Selecao sel );
+void SubItens( Selecao sel );
 void Titulo( void );
 void QuadradoD( int x , int y , int L , int cor , int fundo );
 void Retang( int x , int y , int Lx , int Ly , int cor , int fundo );
 void RetangM( int x , int y , int Lx , int Ly , int caractere , int cor ,  int fundo );
 void limpaTela( void );
-int TelaEmFoco( void );
+int TelaEmFoco( Selecao sel );
 void carregando( void );
+COORD TamConsole( void );
+void ResoluMonitor( COORD *tamanho );
+
 
 int main()
 {
-        Selection sel = ( Selection ){ 1 , 0 , 0 , 1 , 0 };
+        Selecao sel = ( Selecao ){ 1 , 0 , 0 , 1 , 0 , 0 };
         void (*func[2] )( int ) = { exibeCod , rodaProg };
 
 
-        iniciaJanela();
+        iniciaJanela( &sel );
         escondeCursor();
         carregando();
         compilatudo();
         limpaTela();
 
         do{
-                AtualizaMenu( &sel );
-                if( sel.alterou ){
+                if( TelaEmFoco( sel ) ) AtualizaMenuTeclado( &sel );          //Caso o usuario esteja focando na janela do menu ativa interacao pelo teclado
+
+                if( sel.alterou ){                                                                                      //Caso houve alteracao no desenho redesenha
                         DesenhaMenu( sel ) ;
                         sel.alterou = 0;
                 }
@@ -66,9 +86,37 @@ int main()
 
 
 ///
-void iniciaJanela( void )
+void iniciaJanela( Selecao *sel )
 {
-        system("mode con cols=1366 lines=768");
+        int colsR = 172;
+        int linesR = 47;
+
+        //Tamanho do Monitor
+        ResoluMonitor( &sel->tamanhoMonitor );
+
+        //Escala do Tamanho da Janela
+        sel->escalaX = sel->tamanhoMonitor.X / (float)REF_X;
+        sel->escalaY = sel->tamanhoMonitor.Y / (float)REF_Y;
+
+        {
+                int colunas = colsR *  sel->escalaX;
+                int linhas = linesR * sel->escalaY;
+                char cmd[] = "mode con cols=XXX lines=XXX";
+                cmd[ 14 ] = colunas / 100 + '0';
+                cmd[ 15 ] = ( colunas % 100 ) / 10 + '0';
+                cmd[ 16 ] =  colunas % 10  + '0';
+
+                cmd[ 24 ] = linhas / 100 + '0';
+                cmd[ 25 ] = ( linhas % 100 ) / 10 + '0';
+                cmd[ 26 ] =  linhas % 10  + '0';
+
+
+                system( cmd );
+                sel->casasMonitor.X = colunas;
+                sel->casasMonitor.Y = linhas;
+        }
+
+        //Titulo
         system("title PRATICA 10 ___ NARCISO FILHO ___ 17-04-2021");
 
         //Definindo tela cheia
@@ -77,10 +125,51 @@ void iniciaJanela( void )
         keybd_event( VK_MENU , 0x1C , KEYEVENTF_KEYUP , 0 );             //Solta alt
         keybd_event( VK_RETURN , 0x38 , KEYEVENTF_KEYUP , 0 );          //Solta enter
 
+        //Codigo da Janela
+        sel->janela = GetConsoleWindow();                                       // Pega o codigo da tela
+
         //Definindo Tela Maximizada
-        HWND consoleWindow = GetConsoleWindow();                 // Pega o codigo da tela
-        ShowWindow( consoleWindow , SW_MAXIMIZE );               // Simula click em maximizar janela
+        ShowWindow( sel->janela , SW_MAXIMIZE );               // Simula click em maximizar janela
+
+        //Posicao dos Items
+        sel->tamLQ = 20 * sel->escalaX;
+        {
+                const int yQ = 17 * sel->escalaY;
+                const int space = (int)( ( ( colsR - 3 * sel->tamLQ * 2 ) / 5 ) * sel->escalaX);            //Multiplicar o tamLQ por 2 devido a escala para o lado X aplicada em RetangD
+                const int x0Q = space * 1.5;
+                register int i ;
+
+                for( i = 1 ; i < 4 ; i++)
+                        sel->posQ[ i ].X = x0Q + sel->tamLQ * ( i - 1 ) * 2 + space * ( i - 1 );        //Multiplicar o tamLQ por 2 devido a escala para o lado X aplicada em RetangD
+
+                for( i = 1 ; i < 4 ; i++)
+                        sel->posQ[ i ].Y = yQ;
+
+        }
+
+        //Posicao 'Sair'
+        sel->tamLS = 20 * sel->escalaX;
+        sel->tamLS = ( sel->tamLS > 7) ? sel->tamLS : 8;
+
+        sel->posS.X = sel->casasMonitor.X - 3 - sel->tamLS;
+        sel->posS.Y = sel->casasMonitor.Y - 4;
+
+
 }
+
+///
+COORD TamConsole( void )
+{
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        COORD tam;
+
+        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        tam.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        tam.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+        return tam;
+}
+
 
 ///
 void compilatudo( void )
@@ -117,8 +206,9 @@ void rodaProg(int item )
 ///
 #define QTDITEMS 4
 
-void AtualizaMenu( Selection *sel )
+void AtualizaMenuTeclado( Selecao *sel )
 {
+        //Caso esteja focando no menu
         if( ( teclaPress( VK_DOWN )  ||  teclaPress( VK_RETURN ) )  )
                 if( sel->item < QTDITEMS ){
 
@@ -181,11 +271,12 @@ int teclaPress( int tecla )
                 return 0;
 }
 
-int deveSair( Selection *sel )
+int deveSair( Selecao *sel )
 {
-        if( GetAsyncKeyState( VK_HOME )  )
-                        return 1;
-        return 0;
+        if( !GetAsyncKeyState( VK_HOME )  )
+//                if( GetConsoleDisplayMode( (LPDWORD)CONSOLE_FULLSCREEN_MODE  ) )
+                        return 0;
+        return 1;
 }
 
 
@@ -193,49 +284,101 @@ int deveSair( Selection *sel )
 ///------------------------------------------------------------------conio2.h
 #include <conio2.h>
 
-void DesenhaMenu( Selection sel )
+void DesenhaMenu( Selecao sel )
 {
         int i;
         static int first = 1;
-        const int xsair = 146 , ysair = 45;
+        const int xsair = 146 * sel.escalaX, ysair = 45 * sel.escalaY;
+
 
         if( first ){
                 first = 0;
 //                Moldura( LIGHTGRAY );
                 Titulo( );
-        //        Itens();
+                Itens( sel );
         }
 
-        for( i = 0 ; i < 3 ; i++ )
-                QuadradoD( 10 + 50 * i , 17 , 20 , WHITE , BLACK );
+        for( i = 1 ; i < 4 ; i++ )
+                QuadradoD( sel.posQ[ i ].X , sel.posQ[ i ].Y , sel.tamLQ , WHITE , BLACK );
 
-        if( !sel.subitem  &&  sel.item < 4 ) QuadradoD( 10 + 50 * ( sel.item - 1 ) , 17 , 20 , WHITE , GRAY_BRUSH );
+        if( !sel.subitem  &&  sel.item < 4 ) QuadradoD( sel.posQ[ sel.item ].X , sel.posQ[ sel.item ].Y , sel.tamLQ , WHITE , GRAY_BRUSH );
 
-        ( sel.item == 4 ) ? Retang( xsair , ysair , 20 , 3 , LIGHTGRAY , GRAY_BRUSH ) : Retang( xsair , ysair , 20 , 3 , LIGHTGRAY , BLACK );
+        ( sel.item == 4 ) ? Retang( sel.posS.X , sel.posS.Y , sel.tamLS , 3 , LIGHTGRAY , GRAY_BRUSH ) : Retang( sel.posS.X , sel.posS.Y , sel.tamLS , 3 , LIGHTGRAY , BLACK );
 
         SubItens( sel );
 
-        Sleep( FPS );
+        Sleep( DELAY );
 }
-
 ///
-void SubItens( Selection sel )
+void Itens( Selecao sel )
+{
+        int i , j;
+        int corN[3] ={ GREEN , BROWN , CYAN } , fund[3] = { WHITE , WHITE , WHITE };
+        char *nomes[ 3 ] = {
+                "Tri\203ngulos",
+                "Vector Intercec\207\306o",
+                "Notas"
+        };
+
+        //Nomes do Itens e descricao
+        for( i = 1 ; i < 4 ; i++)
+        {
+                textcolor( BLACK );
+                textbackground( WHITE );
+
+                //Fundo branco do item
+                for( j = 1 ; j < 2 * sel.tamLQ - 1 ; j++)
+                        putchxy(  sel.posQ[ i ].X + j  , sel.posQ[ i ].Y + 1 , ' ' );
+
+                //Numero do item
+                gotoxy( 1+ sel.posQ[ i ].X + ( 2 * sel.tamLQ - 2 - strlen("QUEST\307O X") ) / 2 , sel.posQ[ i ].Y + 1 );
+                printf("QUEST\307O %d" , i );
+                textbackground( BLACK );
+
+                //Descricao
+                textcolor( corN[ i - 1] );
+                gotoxy( 1 + sel.posQ[ i ].X + ( 2 * sel.tamLQ - 2 - strlen( nomes[ i - 1 ] ) ) / 2 , sel.posQ[ i ].Y + 2 );
+                printf( nomes[ i - 1] );
+
+                textcolor( WHITE );
+                textbackground( BLACK );
+        }
+
+        //Item 2
+
+        //Item 3
+
+        //Item Sair
+        gotoxy( sel.posS.X + 1 + ( sel.tamLS - 2 - strlen("SAIR") ) / 2 , sel.posS.Y + 1 );
+
+        textcolor( BROWN );
+        printf("SAIR");
+        textcolor( WHITE );
+
+
+}
+///
+void SubItens( Selecao sel )
 {
         if( sel.subitem )
         {
-                int xpp = ( sel.item - 1 ) * ( 50 );
+                int xpp = sel.posQ[ sel.item ].X;
+                int ypp = sel.posQ[ sel.item ].Y + sel.tamLQ;
+
                 int cor1 , cor2;
                 ( sel.subitem == 1 )  ?  (cor1 = GRAY_BRUSH , cor2 = BLACK ) : ( cor1 = BLACK , cor2 = GRAY_BRUSH);
 
-                Retang( xpp + 10 , 37 , 20 , 3 , WHITE , cor1 );
-                cputsxy( xpp+ 15 , 38 , "VER CODIGO");
+                Retang( xpp , ypp , 20 , 3 , WHITE , cor1 );
+                cputsxy( xpp + 5 , ypp + 1 , "VER CODIGO");
 
-                Retang( xpp + 30 , 37 , 20 , 3 , WHITE , cor2 );
-                cputsxy( xpp + 31 , 38 , "EXECUTAR PROGRAMA");
+                Retang( xpp + sel.tamLQ , ypp , 20 , 3 , WHITE , cor2 );
+                cputsxy( xpp + sel.tamLQ + 1  , ypp + 1 , "EXECUTAR PROGRAMA");
         }
         else
         {
-                RetangM( 10 , 37 , 140 , 3 , ' ' , BLACK , BLACK );
+                int y = sel.posQ[ 1 ].Y + sel.tamLQ;
+
+                RetangM( 3 , y , sel.casasMonitor.X - 3  , 3 , ' ' , BLACK , BLACK );
         }
 
 }
@@ -410,16 +553,23 @@ void limpaTela( void )
         clrscr();
 }
 
-int TelaEmFoco( void )
+int TelaEmFoco( Selecao sel )
 {
-//        IntPtr hWnd = GetForegroundWindow();
-
+        if( sel.janela == GetForegroundWindow() )       //Se a janela mais em destaque for a salva na inicializacao do programa (que e a janela do programa), entao retorna 1
+                return 1;
+        else
+                return 0;
 
 }
 
 void carregando( void )
 {
         char *msg = "CARREGANDO >>>";
-//                printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\t\t\t\t\tCARREGANDO>>>>");
         cputsxy( (LARG - strlen( msg ) ) / 2 , ALT / 2  , msg );
+}
+
+void ResoluMonitor( COORD *tamanho )
+{
+        tamanho->X = GetSystemMetrics(SM_CXSCREEN);
+        tamanho->Y = GetSystemMetrics(SM_CYSCREEN);
 }

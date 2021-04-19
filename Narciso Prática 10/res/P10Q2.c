@@ -1,3 +1,7 @@
+/**     Pratica 10 - Questao 2: Calcula vector interseccao entre outros dois vectores
+    *           Narciso Filho
+    */
+
 
 #include <stdio.h>
 #include "graficos.h"

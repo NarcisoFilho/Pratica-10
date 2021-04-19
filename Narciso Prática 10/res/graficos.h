@@ -71,7 +71,10 @@ unsigned repetir_S_N( void )            ///-------------------------------------
                         if( leitura == 'N' )
                                 return 0;
                         else
+                        {
+                                printf("\a");
                                 cputsxy( centraTexto( "ENTRADA INVALIDA!" ) , ALT - 2 , "ENTRADA INVALIDA!" );
+                        }
 
         }
 }

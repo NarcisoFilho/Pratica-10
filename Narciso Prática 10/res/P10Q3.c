@@ -1,6 +1,8 @@
-/**     Pratica 10 - Questao 3
+/**     Pratica 10 - Questao 3: Recebe algumas notas e determina media e conceito final do aluno
     *           Narciso Filho
     */
+
+
 #include <stdio.h>
 #include "graficos.h"
 

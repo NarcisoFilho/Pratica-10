@@ -1,4 +1,4 @@
-/**     Pratica 10 - Questao 1
+/**     Pratica 10 - Questao 1: Determina area e tipo de triangulo a partir dos lados
     *           Narciso Filho
     */
 #include <stdio.h>
@@ -99,7 +99,7 @@ void resultado(float a , float b, float c , float area , char tipo)     ///
         {
                 textcolor( RED );
                 gotoxy( 6 , 13 );
-                printf("\255\255Problemas!!");
+                printf("\a\255\255Problemas!!");
                 gotoxy( 6 , 14 );
                 printf("Isso n\306o \202 um tri\203ngulo...");
         }
