@@ -135,4 +135,33 @@ void info( void )
         textcolor( WHITE );
         gotoxy( 3 , 4 );
 }
+///FIM DO CODIGO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
 

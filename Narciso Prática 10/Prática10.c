@@ -29,6 +29,8 @@ typedef struct
 
         float escalaX;
         float escalaY;
+
+        POINT posMouse;
 }Selecao;
 
 void iniciaJanela( Selecao *sel );
@@ -38,6 +40,10 @@ void exibeCod( int );
 void rodaProg(int );
 
 void AtualizaMenuTeclado( Selecao *sel );
+void AtualizaMenuMouse( Selecao *sel );
+int ColisMouseRetang( int x0 , int xf , int y0 , int yf , Selecao sel);
+int AlteraItemMouse( Selecao *sel , int nmrItem );
+int EnrarItemMouse( Selecao *sel );
 int deveSair( Selecao *sel );
 int teclaPress( int tecla );
 
@@ -51,34 +57,47 @@ void Retang( int x , int y , int Lx , int Ly , int cor , int fundo );
 void RetangM( int x , int y , int Lx , int Ly , int caractere , int cor ,  int fundo );
 void limpaTela( void );
 int TelaEmFoco( Selecao sel );
-void carregando( void );
+void carregando( Selecao sel );
 COORD TamConsole( void );
 void ResoluMonitor( COORD *tamanho );
+void desenhosItem1( Selecao sel );
+void desenhosItem2( Selecao sel );
+void desenhosItem3( Selecao sel );
+void Hasta( Selecao sel );
+
+
 
 
 int main()
 {
-        Selecao sel = ( Selecao ){ 1 , 0 , 0 , 1 , 0 , 0 };
+        Selecao sel = ( Selecao ){ 1 , 0 , 0 , 0 , 0 , 0 };
         void (*func[2] )( int ) = { exibeCod , rodaProg };
 
 
         iniciaJanela( &sel );
         escondeCursor();
-        carregando();
+        carregando( sel );
         compilatudo();
         limpaTela();
+        DesenhaMenu( sel );
 
         do{
-                if( TelaEmFoco( sel ) ) AtualizaMenuTeclado( &sel );          //Caso o usuario esteja focando na janela do menu ativa interacao pelo teclado
+                if( TelaEmFoco( sel ) ){
+                        AtualizaMenuTeclado( &sel );          // Caso o usuario esteja focando na janela do menu ativa interacao pelo teclado
+                        AtualizaMenuMouse( &sel );           // "  " pelo mouse
+                }
 
-                if( sel.alterou ){                                                                                      //Caso houve alteracao no desenho redesenha
+                if( sel.alterou ){                                                         //Caso houve alteracao no desenho redesenha
                         DesenhaMenu( sel ) ;
                         sel.alterou = 0;
+                        Beep( 1000 , DELAY );
                 }
                 if( sel.entrar ) ( *func[ sel.subitem - 1] )(sel.item);
 
                 sel.entrar = 0;
         }while( !deveSair( &sel )  &&  !sel.sair );
+
+        Hasta( sel );
 
         return 0;
 }
@@ -97,6 +116,8 @@ void iniciaJanela( Selecao *sel )
         //Escala do Tamanho da Janela
         sel->escalaX = sel->tamanhoMonitor.X / (float)REF_X;
         sel->escalaY = sel->tamanhoMonitor.Y / (float)REF_Y;
+        #define ESCX sel->escalaX
+        #define ESCY sel->escalaY
 
         {
                 int colunas = colsR *  sel->escalaX;
@@ -154,7 +175,14 @@ void iniciaJanela( Selecao *sel )
         sel->posS.X = sel->casasMonitor.X - 3 - sel->tamLS;
         sel->posS.Y = sel->casasMonitor.Y - 4;
 
+        //Desabilitar Modo de Edicao Rapida para nao atrapalhar iteracao do mouse
+        {
+                HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+                DWORD prev_mode;
 
+                GetConsoleMode(hInput, &prev_mode);
+                SetConsoleMode(hInput, prev_mode & ENABLE_EXTENDED_FLAGS);
+        }
 }
 
 ///
@@ -182,13 +210,31 @@ void compilatudo( void )
 ///
 void exibeCod( int item )
 {
-        char cmds[][40] = {
-                "start type res\\p10q1.c",
-                "start type res\\p10q2.c",
-                "start type res\\p10q3.c"
+        static int aviso = 1;
+        char cmds[][80] = {
+                "start \"Codigo da Questao 1\" more res\\p10q1.c",
+                "start \"Codigo da Questao 2\" more res\\p10q2.c",
+                "start \"Codigo da Questao 3\" more res\\p10q3.c"
         };
 
         system( cmds[ item - 1] );
+
+
+
+
+        if( aviso )
+        {
+                char avisoCriar[150] = {"(echo MsgBox \"-Tecla ENTER para descer uma linha\" ^& vbCrLf ^& \"-Tecla SPACE para descer uma pagina\",262192, \"Tutorial\")> res\\aviso.vbs "};
+                char avisoExibir[80] = {"start res\\aviso.vbs"};
+                char avisoDeletar[80] = {"del res\\aviso.vbs"};
+
+                system( avisoCriar );
+                system( avisoExibir );
+
+                Sleep( 1000 );
+                system( avisoDeletar );
+                aviso = 0;
+        }
 }
 
 ///
@@ -282,7 +328,7 @@ int deveSair( Selecao *sel )
 
 
 ///------------------------------------------------------------------conio2.h
-#include <conio2.h>
+#include "res\conio\conio2.h"
 
 void DesenhaMenu( Selecao sel )
 {
@@ -307,7 +353,7 @@ void DesenhaMenu( Selecao sel )
 
         SubItens( sel );
 
-        Sleep( DELAY );
+//        Sleep( DELAY );       // O beep ja causa um delay.Nao precisa mais.
 }
 ///
 void Itens( Selecao sel )
@@ -344,10 +390,6 @@ void Itens( Selecao sel )
                 textbackground( BLACK );
         }
 
-        //Item 2
-
-        //Item 3
-
         //Item Sair
         gotoxy( sel.posS.X + 1 + ( sel.tamLS - 2 - strlen("SAIR") ) / 2 , sel.posS.Y + 1 );
 
@@ -355,6 +397,10 @@ void Itens( Selecao sel )
         printf("SAIR");
         textcolor( WHITE );
 
+        //Desenhos
+        desenhosItem1( sel );
+        desenhosItem2( sel );
+        desenhosItem3( sel );
 
 }
 ///
@@ -368,11 +414,11 @@ void SubItens( Selecao sel )
                 int cor1 , cor2;
                 ( sel.subitem == 1 )  ?  (cor1 = GRAY_BRUSH , cor2 = BLACK ) : ( cor1 = BLACK , cor2 = GRAY_BRUSH);
 
-                Retang( xpp , ypp , 20 , 3 , WHITE , cor1 );
-                cputsxy( xpp + 5 , ypp + 1 , "VER CODIGO");
+                Retang( xpp , ypp , sel.tamLQ , 3 , WHITE , cor1 );
+                cputsxy( xpp + 1 + ( sel.tamLQ - 2 - strlen("VER CODIGO") ) / 2 , ypp + 1 , "VER CODIGO");
 
-                Retang( xpp + sel.tamLQ , ypp , 20 , 3 , WHITE , cor2 );
-                cputsxy( xpp + sel.tamLQ + 1  , ypp + 1 , "EXECUTAR PROGRAMA");
+                Retang( xpp + sel.tamLQ , ypp , sel.tamLQ , 3 , WHITE , cor2 );
+                cputsxy( xpp + 1 + sel.tamLQ + ( sel.tamLQ - 2 - strlen("EXECUTAR") ) / 2 , ypp + 1 , "EXECUTAR");
         }
         else
         {
@@ -503,7 +549,7 @@ void Titulo( void )
                 {"(()/(()/(   )\\     )  /(()/(  )\\   )\\      ( /( ( /("},
                 {" /(_))(_))(((_)(  ( )(_))(_))((_)(((_)(    )\\()))\\())"},
                 {"(_))(_))  )\\ _ )\\(_(_())_)) )\\___)\\ _ )\\  ((_)\\((_)\\"},
-                {"| _ \\ _ \\   /_\\  |_   _|_ _| / __|  _\\    /  | /  \\"},
+                {"| _ \\ _ \\   /_\\  |_   _|_ _| / __| /_\\    /  | /  \\"},
                 {"|  _/   /  / _ \\   | |  | | | |__ / _ \\    | || () |"},
                 {"|_| |_|_\\ /_/ \\_\\  |_| |___| \\___/_/ \\_\\   |_| \\__/"}
         };
@@ -548,11 +594,13 @@ void Moldura( int cor )
         gotoxy( 3 , 4 );
 }
 
+///
 void limpaTela( void )
 {
         clrscr();
 }
 
+///
 int TelaEmFoco( Selecao sel )
 {
         if( sel.janela == GetForegroundWindow() )       //Se a janela mais em destaque for a salva na inicializacao do programa (que e a janela do programa), entao retorna 1
@@ -562,14 +610,266 @@ int TelaEmFoco( Selecao sel )
 
 }
 
-void carregando( void )
+///
+void carregando( Selecao sel )
 {
         char *msg = "CARREGANDO >>>";
-        cputsxy( (LARG - strlen( msg ) ) / 2 , ALT / 2  , msg );
+        cputsxy( ( sel.casasMonitor.X - strlen( msg ) ) / 2 , sel.casasMonitor.Y / 2  , msg );
+
+        char *msg2 = "(Dica: Utilize as setas do teclado ou o mouse no menu)";
+        cputsxy( ( sel.casasMonitor.X - strlen( msg2 ) ) / 2 , sel.casasMonitor.Y / 2 + 9  , msg2 );
+
+
 }
 
+///
 void ResoluMonitor( COORD *tamanho )
 {
         tamanho->X = GetSystemMetrics(SM_CXSCREEN);
         tamanho->Y = GetSystemMetrics(SM_CYSCREEN);
 }
+
+///
+void desenhosItem1( Selecao sel )
+{
+        #define QY1 14
+        char des1[QY1][ 40 ] = {
+                " \302",
+                " \263 \263\134",
+                " \263 \263 \134",
+                " \263 \263  \134",
+                " \263 \263   \134",
+                " \263 \263    \134  c       TIPO=?",
+                "b\263 \263     \134         \265REA=?",
+                " \263 \263      \134",
+                " \263 \263       \134",
+                " \263 \263        \134",
+                " \263 \263         \134",
+                " \301 \300\304\304\304\304\304\304\304\304\304\304",
+                "   \303\304\304\304\304\304\304\304\304\304\304\264",
+                "        a"
+        };
+
+        int i , j;
+        int x0 = sel.posQ[ 1 ].X + 7  * sel.escalaX;
+        int y0 = sel.posQ[ 1 ].Y + 1 + ( sel.tamLQ - QY1 ) / 2;
+
+        textcolor( GREEN );
+
+        for( i = 0 ; i < QY1 ; i++ )
+                for( j = 0 ; j < strlen( des1[ i ] ) ; j++ )
+                {
+                        gotoxy( x0 + j , y0 + i );
+                        printf("%c" , des1[ i ][ j ]);
+                }
+
+        textcolor( WHITE );
+
+}
+
+void desenhosItem2( Selecao sel )
+{
+        #define QY2 5
+        char des1[QY2][ 20 ] = {
+                "  A: \304\304\304\304\304\304\304\304>",
+                "",
+                "  B:     \304\304\304\304\304\304\304\304\304>",
+                "",
+                "INT:     \304\304\304\304>"
+        };
+
+        int i , j;
+        int cor;
+        int x0 = sel.posQ[ 2 ].X + 12  * sel.escalaX;
+        int y0 = sel.posQ[ 2 ].Y + sel.tamLQ / 2 - 2;
+
+
+        for( i = 0 ; i < QY2 ; i++ )
+                for( j = 0 ; j < strlen( des1[ i ] ) ; j++ )
+                {
+                        cor = ( i == 0 ) ? BROWN : ( ( i == 2 ) ? BLUE : GREEN );
+                        textcolor( cor );
+                        gotoxy( x0 + j , y0 + i );
+                        printf("%c" , des1[ i ][ j ]);
+                }
+
+        textcolor( WHITE );
+
+}
+
+void desenhosItem3( Selecao sel )
+{
+        #define QY3 14
+        //Item 1
+        char des1[QY3][ 20 ] = {
+                "\332\304\304\304\304\304\304\304\304\304\304\304\277",
+                "\263  ARAUJO   \263",
+                "\263           \263",
+                "\263 Nota1...  \263",
+                "\263 Nota2...  \263",
+                "\263 Nota3...  \263",
+                "\263 Nota4...  \263",
+                "\263 NotaF...  \263",
+                "\263           \263",
+                "\263  100: A   \263",
+                "\300\304\304\304\304\304\304\304\304\304\304\304\331",
+
+        };
+        char des2[QY3][ 20 ] = {
+                "\332\304\304\304\304\304\304\304\304\304\304\304\277",
+                "\263  OJUARA   \263",
+                "\263           \263",
+                "\263 Nota1...  \263",
+                "\263 Nota2...  \263",
+                "\263 Nota3...  \263",
+                "\263 Nota4...  \263",
+                "\263 NotaF...  \263",
+                "\263           \263",
+                "\263   49: F   \263",
+                "\300\304\304\304\304\304\304\304\304\304\304\304\331",
+
+        };
+
+        int i , j;
+        int cor;
+        int x0 = sel.posQ[ 3 ].X + 1;
+        int y0 = sel.posQ[ 3 ].Y + sel.tamLQ / 2 - 4;
+        int space = (2 * sel.tamLQ - 2 - 2 * 13) / 3;
+
+
+        for( i = 0 ; i < QY3 ; i++ )
+                for( j = 0 ; j < strlen( des1[ i ] ) ; j++ )
+                        {
+                                cor = YELLOW;
+                                if( i == 9  &&  j > 1  &&  j <12 )      cor = GREEN;
+                                textcolor( cor );
+                                gotoxy( x0 + space + j , y0 + i );
+                                printf("%c" , des1[ i ][ j ]);
+                        }
+
+        for( i = 0 ; i < QY3 ; i++ )
+                for( j = 0 ; j < strlen( des2[ i ] ) ; j++ )
+                        {
+                                cor = YELLOW;
+                                if( i == 9  &&  j > 1  &&  j <12 )      cor = RED;
+                                textcolor( cor );
+                                gotoxy( x0 + 13 + 2 * space + j , y0 + i );
+                                printf("%c" , des2[ i ][ j ]);
+                        }
+
+
+        textcolor( WHITE );
+
+};
+
+///
+void Hasta( Selecao sel )
+{
+        char *msg = "\255HASTA LA VISTA!";
+
+        clrscr();
+        gotoxy( ( sel.casasMonitor.X - strlen( msg ) ) / 2 , sel.casasMonitor.Y / 2 ) ;
+        printf( msg );
+        Sleep( 1300 );
+
+        //Sair logo
+        keybd_event( VK_RETURN , 0 , 0 , 0 );
+        Sleep( 200 );
+        keybd_event( VK_RETURN , 0 , KEYEVENTF_KEYUP , 0 );
+}
+
+
+///
+void AtualizaMenuMouse( Selecao *sel )
+{
+
+        GetCursorPos( &sel->posMouse );
+        ScreenToClient( sel->janela , &sel->posMouse);
+
+        int i , j;
+        //Inicializacao das coordenadas dos retangulos dos itens e sub itens
+        const int x0[] =  { 111 * ESCX , 513 * ESCX , 913 * ESCX } , xf[] = { 431 * ESCY , 830 * ESCX , 1230 * ESCX };
+        int  y0[3] , yf[3];
+        const int x0S = 1186 * ESCX , xfS= 1343 * ESCX , y0S = 678 * ESCY , yfS = 714 * ESCY;
+        int y0s[ 2 ] , yfs[ 2 ];
+        y0[ 0 ] = y0[ 1 ] = y0[ 2 ] =  255 * sel->escalaY;  //Alturas iniciais iguais dos itens principais
+        yf[ 0 ]  = yf[ 1 ] = yf[ 2 ] =  573 * sel->escalaY;    //Alturas finais iguais dos itens principais
+        y0s[ 0 ] = y0s[ 1 ] = 581 * sel-> escalaY;
+        yfs[ 0 ] = yfs[ 1 ] = 622 * sel->escalaY;
+
+        //Quadrados questoes 1 , 2 , 3
+        for( i = 0 ; i < 3 ; i++ )
+                if( ColisMouseRetang( x0[ i ] , xf[ i ] , y0[ i ] , yf[ i ] , *sel ) ){
+                        AlteraItemMouse( sel , i + 1 );
+                       if( GetAsyncKeyState( VK_LBUTTON ) )
+                        {
+                                sel->subitem = 1;
+                                sel->alterou = 1;
+                        }
+                }
+
+
+        //Retangulo sair
+        if( ColisMouseRetang( x0S , xfS , y0S , yfS , *sel) ){
+                AlteraItemMouse( sel , 4);
+                if( GetAsyncKeyState( VK_LBUTTON ) )
+                {
+                        sel->sair = 1;
+                        sel->alterou = 1;
+                }
+        }
+
+
+        //Retangulos Subitens
+        if( sel->subitem ){
+                if( ( ( sel->posMouse.x >= 112 * sel->escalaX  &&  sel->posMouse.x < 270 * sel->escalaX )  ||  ( sel->posMouse.x >= 512 * sel->escalaX  &&  sel->posMouse.x < 670 * sel->escalaX )  ||  ( sel->posMouse.x >= 913 * sel->escalaX  &&  sel->posMouse.x < 1070 * sel->escalaX ) )  &&  sel->posMouse.y >= 581 * sel->escalaY  &&  sel->posMouse.y < 622 * sel->escalaY )
+                {
+                        if( sel->subitem != 1 )
+                        {
+                                sel->subitem = 1;
+                                sel->alterou = 1;
+                        }
+
+                        if( GetAsyncKeyState( VK_LBUTTON ) ){
+                                sel->entrar = 1;
+                                sel->alterou = 1;
+                        }
+
+                }
+
+                if( ( ( sel->posMouse.x >= 270 * sel->escalaX  &&  sel->posMouse.x < 429 * sel->escalaX )  ||  ( sel->posMouse.x >= 670 * sel->escalaX  &&  sel->posMouse.x < 831 * sel->escalaX )  ||  ( sel->posMouse.x >= 1070 * sel->escalaX  &&  sel->posMouse.x < 1232 * sel->escalaX ) )  &&  sel->posMouse.y >= 581 * sel->escalaY  &&  sel->posMouse.y < 622 * sel->escalaY )
+                {
+                        if( sel->subitem != 2 )
+                        {
+                                sel->subitem = 2;
+                                sel->alterou = 1;
+                        }
+
+                        if( GetAsyncKeyState( VK_LBUTTON ) ){
+                                sel->entrar = 1;
+                                sel->alterou = 1;
+                        }
+
+                }
+        }
+}
+
+
+int ColisMouseRetang( int x0 , int xf , int y0 , int yf , Selecao sel)
+{
+        if( sel.posMouse.x >= x0   &&  sel.posMouse.x < xf   &&  sel.posMouse.y >= y0   &&  sel.posMouse.y < yf  )
+                return 1;
+
+        return 0;
+}
+
+int AlteraItemMouse( Selecao *sel , int nmrItem )
+{
+        if( sel->item != nmrItem )
+        {
+                sel->item = nmrItem;
+                sel->subitem = 0;
+                sel->alterou = 1;
+        }
+}
+

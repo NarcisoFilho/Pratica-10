@@ -44,7 +44,7 @@ int main()
 
 
 ///-------------------------------------------------------------------------------------------conio2.h
-#include <conio2.h>
+#include "conio\conio2.h"
 #include <string.h>
 #include <math.h>
 #define LARG 50
@@ -134,4 +134,32 @@ void coletarx( float *a , float *b , float *c , float *d , float *F , int x )
 
 
 }
+///FIM DO CODIGO
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//

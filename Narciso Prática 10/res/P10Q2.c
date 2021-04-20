@@ -76,7 +76,7 @@ int *veta , na , *vetb , nb , *vetc , *nc;
 ///-----------------------------------------------------------------------------------------------------conio2.h
 #include <stdlib.h>
 #include <string.h>
-#include <conio2.h>
+#include "conio\conio2.h"
 #include <windows.h>
 #include <ctype.h>
 
@@ -147,3 +147,32 @@ void ir( int x , int y )        //gotoxy()
 {
         gotoxy( x , y);
 }
+///FIM DO CODIGO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
